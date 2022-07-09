@@ -1,5 +1,38 @@
 #pragma once
-class Settings
+
+#include <QNetworkCookieJar>
+#include <QNetworkAccessManager>
+#include <QSettings>
+#include <QColor>
+
+namespace B23Style
 {
+	constexpr QColor Pink(251,114,153);
+	constexpr QColor Blue(0,161,214);
+}
+
+class  CookieJar:public QNetworkCookieJar
+{
+	static constexpr auto CookiesSeparator='\n';
+public:
+	CookieJar(QObject *parent=nullptr);
+	CookieJar(const QString &cookies,QObject *parent=nullptr);
+	QByteArray getCookie(const QString &name) const;
+	bool isEmpty() const;
+	void clear();
+	QString toString() const;
+private:
+	void fromString(const QString &cookies);
+};
+class Settings:public QSettings
+{
+public:
+	Settings(QObject *parent=nullptr);
+	static  Settings *inst();
+	CookieJar *getCookieJar();
+	void saveCookies();
+	void removeCookies();
+private:
+	CookieJar *cookieJar;
 };
 
