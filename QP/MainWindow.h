@@ -6,6 +6,9 @@
 #include <QToolButton>
 #include <QNetworkReply>
 
+class ElidedTextLabel;
+class TaskTableWidget;
+
 class MainWindow:public QMainWindow
 {
 	Q_OBJECT

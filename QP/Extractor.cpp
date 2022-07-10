@@ -60,22 +60,65 @@ void Extractor::start(QString url)
 
 void Extractor::abort()
 {
+	if (httpReply != nullptr)
+	{
+		httpReply->abort();
+	}
 }
 
 std::unique_ptr<Extractor::Result> Extractor::getResult()
 {
-	std::unique_ptr<Extractor::Result> rs;
-	return rs;
+	result->focusItemId = this->focusItemId;
+	return move(result);
 }
 
 QJsonObject Extractor::getReplyJsonObj(const QString& requiredKey)
 {
-	return QJsonObject();
+	auto reply = this->httpReply;
+	this->httpReply = nullptr;
+	reply->deleteLater();
+	if (reply->error() == QNetworkReply::OperationCanceledError)
+	{
+		return QJsonObject();
+	}
+	const auto [json, errorString] = Network::Bili::parseReply(reply, requiredKey);
+	if (!errorString.isNull())
+	{
+		emit errorOccured(errorString);
+		return QJsonObject();
+	}
+	if (requiredKey.isEmpty())
+	{
+		return json;
+	}
+	else
+	{
+		auto ret = json[requiredKey].toObject();
+		if (ret.isEmpty())
+		{
+			emit errorOccured("请求错误：内容为空");
+			return QJsonObject();
+		}
+		return ret;
+	}
+
 }
 
 QString Extractor::getReplyText()
 {
-	return QString();
+	auto reply=httpReply;
+	httpReply=nullptr;
+	reply->deleteLater();
+	if (reply->error()==QNetworkReply::OperationCanceledError)
+	{
+		return  QString();
+	}
+	if (reply->error()!=QNetworkReply::NoError)
+	{
+		emit errorOccured("网络请求错误");
+		return QString();
+	}
+	return QString::fromUtf8(reply->readAll());
 }
 
 void Extractor::parseUrl(QUrl url)
@@ -161,24 +204,36 @@ void Extractor::parseUrl(QUrl url)
 
 void Extractor::tryRedirect(const QUrl& url)
 {
-	auto rqst=QNetworkRequest(url);
+	auto rqst = QNetworkRequest(url);
 	rqst.setMaximumRedirectsAllowed(0);
-	httpReply=Network::accessManager()->get(rqst);
-	connect(httpReply,&QNetworkReply::finished,this,[this]()
-	{
-		auto reply=httpReply;
-		httpReply=nullptr;
-		reply->deleteLater();
-		if (reply->hasRawHeader("Location"))
+	httpReply = Network::accessManager()->get(rqst);
+	connect(httpReply, &QNetworkReply::finished, this, [this]()
 		{
-			auto redirect=QString::fromUtf8(reply->rawHeader("Location"));
-			if (redirect.contains("bilibili.com"))
+			auto reply = httpReply;
+			httpReply = nullptr;
+			reply->deleteLater();
+			if (reply->hasRawHeader("Location"))
 			{
-				parseUrl(redirect);
-			}e
-		}
+				auto redirect = QString::fromUtf8(reply->rawHeader("Location"));
+				if (redirect.contains("bilibili.com"))
+				{
+					parseUrl(redirect);
+				}
+				else
+				{
+					emit errorOccured("重定向目标非B站");
+				}
+			}
+			else if (reply->error() != QNetworkReply::NoError)
+			{
+				emit errorOccured("网络错误");
+			}
+			else
+			{
+				emit errorOccured("未知错误");
+			}
 
-	});
+		});
 }
 
 void Extractor::startUgc(const QString& query)
@@ -199,14 +254,69 @@ void Extractor::startPgcByMdId(qint64 mdId)
 
 void Extractor::startPgc(PgcIdType idType, qint64 id)
 {
+	if (idType == PgcIdType::EpisodeId)
+	{
+		focusItemId = id;
+	}
+	auto api = "https://api.bilibili.com/pgc/view/web/season";
+	auto query = QString("?%1=%2").arg(idType == PgcIdType::SeasonId ? "season_id" : "ep_id").arg(id);
+	httpReply = Network::Bili::get(api + query);
+	connect(httpReply, &QNetworkReply::finished, this, &Extractor::pgcFinished);
 }
 
+static int epFlags(int epStatus)
+{
+	switch (epStatus)
+	{
+	case 2:
+		return ContentItemFlag::NoFlags;
+	case 13:
+		return ContentItemFlag::VipOnly;
+	case 6:
+	case 7:
+	case 8:
+	case 9:
+	case 12:
+		return ContentItemFlag::PayOnly;
+	default:
+		qDebug() << "unknown ep status" << epStatus;
+		return ContentItemFlag::NoFlags;
+	}
+}
+static QString epIndexedTitle(const QString& title, int filedWidth, const QString& indexSuffix)
+{
+	bool isNum;
+	title.toDouble(&isNum);
+	if (!isNum)
+	{
+		return title;
+	}
+	auto& unpadNumStr = title;
+	auto dotPos = unpadNumStr.indexOf('.');
+	auto padLen = filedWidth - (dotPos == -1 ? unpadNumStr.size() : dotPos);
+	return QString("第%1%2").arg(QString(padLen, '0') + unpadNumStr, indexSuffix);
+}
+static QString epTitle(const QString& title, const QString& longTitle)
+{
+	if (longTitle.isEmpty())
+	{
+		return title;
+	}
+	else
+	{
+		return title + " " + longTitle;
+	}
+}
 void Extractor::startPugv(PugvIdType idType, qint64 id)
 {
 }
 
 void Extractor::startLive(qint64 roomId)
 {
+	auto api="https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom";
+	auto query="?room_id="+QString::number(roomId);
+	httpReply=Network::Bili::get(api+query);
+	connect(httpReply,&QNetworkReply::finished,this,&Extractor::liveFinished);
 }
 
 void Extractor::startLiveActivity(const QUrl& url)
@@ -236,6 +346,100 @@ void Extractor::ugcFinished()
 
 void Extractor::pgcFinished()
 {
+	auto res = getReplyJsonObj("result");
+	if (res.isEmpty())
+	{
+		return;
+	}
+	auto type = res["type"].toInt();
+	QString indexSuffix = (type == 1 || type == 4) ? "话" : "集";
+
+	auto ssid = res["season_id"].toInteger();
+	auto title = res["title"].toString();
+	auto pgcRes = make_unique<SectionListResult>(ContentType::PGC, ssid, title);
+	auto mainSecEps = res["episodes"].toArray();
+	auto totalEps = res["total"].toInt();
+
+	if (totalEps <= 0)
+	{
+		totalEps = mainSecEps.size();
+	}
+
+	auto indexFieldWidth = QString::number(totalEps).size();
+	pgcRes->setions.emplaceBack("正片");
+	auto& mainSection = pgcRes->setions.first();
+	for (auto epValR : mainSecEps)
+	{
+		auto epObj = epValR.toObject();
+		auto title = epObj["title"].toString();
+		auto longTitle = epObj["long_title"].toString();
+		mainSection.episodes.emplaceBack(
+			epObj["id"].toInteger(),
+			epTitle(epIndexedTitle(title, indexFieldWidth, indexSuffix), longTitle),
+			qRound(epObj["duration"].toDouble() / 1000.0),
+			epFlags(epObj["status"].toInt())
+
+		);
+	}
+	if (focusItemId == 0 && mainSection.episodes.size() == 1)
+	{
+		focusItemId = mainSection.episodes.first().id;
+	}
+	for (auto&& secValR : res["section"].toArray())
+	{
+		auto secObj = secValR.toObject();
+		auto eps = secObj["episodes"].toArray();
+		if (eps.size() == 0)
+		{
+			continue;
+		}
+		pgcRes->setions.emplaceBack(secObj["title"].toString());
+		auto& sec = pgcRes->setions.last();
+		for (auto&& epValR : eps)
+		{
+			auto epObj = epValR.toObject();
+			sec.episodes.emplaceBack(
+				epObj["id"].toInteger(),
+				epTitle(epObj["title"].toString(), epObj["long_title"].toString()),
+				qRound(epObj["duration"].toDouble() / 1000.0),
+				epFlags(epObj["status"].toInt())
+			);
+		}
+
+	}
+	if (res["status"].toInt() == 2)
+	{
+		this->result = move(pgcRes);
+		emit success();
+		return;
+	}
+	//season is not free .add user payment info
+	auto userStatApi = "https://api.bilibili.com/pgc/view/web/season/user/status";
+	auto query = "?season_id=" + QString::number(ssid);
+	httpReply = Network::Bili::get(userStatApi + query);
+	connect(httpReply, &QNetworkReply::finished, this, [this, pgcRes = move(pgcRes)]()mutable
+	{
+		auto result = getReplyJsonObj("result");
+		if (result.isEmpty())
+		{
+			return;
+		}
+		auto userIsVip = result["vip_info"].toObject()["status"].toInt() == 1;
+		auto userHasPaid = result["pay"].toInt() == 1;//toInt(1)
+		if (!userHasPaid)
+		{
+			for (auto& video : pgcRes->setions.first().episodes)
+			{
+				auto notFree = (video.flags & ContentItemFlag::VipOnly) or (video.flags & ContentItemFlag::PayOnly);
+				if (notFree && !userHasPaid)
+				{
+					video.flags |= ContentItemFlag::Disabled;
+				}
+			}
+		}
+		this->result = move(pgcRes);
+		emit success();
+	});
 }
 
 void Extractor::pugvFinished()
@@ -244,6 +448,65 @@ void Extractor::pugvFinished()
 
 void Extractor::liveFinished()
 {
+	auto json=getReplyJsonObj();
+	if (json.isEmpty())
+	{
+		return;
+	}
+	if (!json.contains("data")||json["data"].type()==QJsonValue::Null)
+	{
+		emit errorOccured("B站请求错误：非法房间号");
+		return;
+	}
+	auto data=json["data"].toObject();
+	auto roomInfo=data["room_info"].toObject();
+	if (!roomInfo.contains("live_status"))
+	{
+		emit errorOccured("发生了错误：getInfoByRoom：未找到live_status");
+		return;
+	}
+	auto roomStatus=roomInfo["live_status"].toInt();
+	if (roomStatus==0)
+	{
+		emit errorOccured("该房间当前未开播");
+		return;
+	}
+	if (roomStatus==2)
+	{
+		emit errorOccured("该房间正在轮播");
+		return;
+	}
+	auto roomId=roomInfo["room_id"].toInteger();
+	bool hasPayment=roomInfo["special_type"].toInt()==1;
+	auto title=roomInfo["title"].toString();
+	auto uname=data["anchor_info"].toObject()["base_info"].toObject()["uname"].toString();
+	auto liveRes=make_unique<LiveResult>(roomId,QString("[%1]%2").arg(uname,title));
+	if (!hasPayment)
+	{
+		result=move(liveRes);
+		emit success();
+		return;
+	}
+	auto validateApi="https://api.live.bilibili.com/av/v1/PayLive/liveValidate";
+	auto query="?room_id="+QString::number(roomId);
+	httpReply=Network::Bili::get(validateApi+query);
+	connect(httpReply,&QNetworkReply::finished,this,[this,liveRes=move(liveRes)]()mutable
+	{
+		auto data=getReplyJsonObj("data");
+		if (data.isEmpty())
+		{
+			return;
+		}
+		if(data["permission"].toInt())
+		{
+			result=move(liveRes);
+			emit success();
+		}else
+		{
+			emit errorOccured("该直播需要付费购票观看");
+		}
+	});
+
 }
 
 void Extractor::liveActivityFinished()
