@@ -27,7 +27,7 @@ struct VersionInfo
 	QString exeDownloadUrl;
 	QString desc;
 };
-static const auto ReleaseExecutableSuffix = "exe";
+static const auto ReleaseExecutableSuffix = "zip";
 static int cmpVersion(const QString& a, const QString& b)
 {
 	int lenA = a.size();
@@ -69,24 +69,33 @@ static int cmpVersion(const QString& a, const QString& b)
 }
 VersionInfo parseVerInfoFromNjugit(QNetworkReply* reply)
 {
-	return VersionInfo();
+	 auto obj = QJsonDocument::fromJson(reply->readAll()).array().first().toObject();
+    VersionInfo verInfo;
+    verInfo.ver = obj["tag_name"].toString().sliced(1);
+    verInfo.desc = obj["description"].toString();
+    for (auto &&assetObjRef : obj["assets"].toObject()["links"].toArray()) {
+        auto asset = assetObjRef.toObject();
+        if (asset["name"].toString().endsWith(ReleaseExecutableSuffix)) {
+            verInfo.exeDownloadUrl = asset["direct_asset_url"].toString();
+            break;
+        }
+    }
+    return verInfo;
 }
 VersionInfo parseVerInfoFromGithub(QNetworkReply* reply)
 {
 	auto obj = QJsonDocument::fromJson(reply->readAll()).object();
-	VersionInfo verInfo;
-	verInfo.ver = obj["tab_name"].toString().sliced(1);
-	verInfo.desc = obj["description"].toString();
-	for (auto&& assetObjRef : obj["assets"].toObject()["links"].toArray())
-	{
-		auto asset = assetObjRef.toObject();
-		if (asset["name"].toString().endsWith(ReleaseExecutableSuffix))
-		{
-			verInfo.exeDownloadUrl = asset["direct_asset_url"].toString();
-			break;
-		}
-	}
-	return verInfo;
+    VersionInfo verInfo;
+    verInfo.ver = obj["tag_name"].toString().sliced(1);
+    verInfo.desc = obj["body"].toString();
+    for (auto &&assetObjRef : obj["assets"].toArray()) {
+        auto asset = assetObjRef.toObject();
+        if (asset["name"].toString().endsWith(ReleaseExecutableSuffix)) {
+            verInfo.exeDownloadUrl = asset["browser_download_url"].toString();
+            break;
+        }
+    }
+    return verInfo;
 }
 void AboutWidgetPrivate::startGetVersionInfo(const QString& url, std::function<VersionInfo(QNetworkReply*)> parser)
 {

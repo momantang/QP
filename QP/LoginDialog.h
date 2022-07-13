@@ -6,6 +6,9 @@
 
 #include "DownloadDialog.h"
 
+
+
+
 class LoginDialog :public QDialog
 {
 	Q_OBJECT
@@ -27,7 +30,7 @@ private:
 	void showRefreshButton();
 	void hideRefreshButton();
 private:
-	QString authKey;
+	QString oauthKey;
 	int polledTimes = 0;
 	QTimer* pollTimer;
 	QLabel* qrCodeLabel;

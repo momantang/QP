@@ -56,15 +56,15 @@ void CookieJar::fromString(const QString& cookies)
 	setAllCookies(cs);
 }
 
-Q_GLOBAL_STATIC(Settings,settings)
-static constexpr auto KeyCookies="cookies";
+Q_GLOBAL_STATIC(Settings, settings)
+static constexpr auto KeyCookies = "cookies";
 
-Settings::Settings(QObject* parent):QSettings(QSettings::IniFormat,QSettings::UserScope,"VoidZero","B23Downloader",parent)
+Settings::Settings(QObject* parent) :QSettings(QSettings::IniFormat, QSettings::UserScope, "VoidZero", "B23Downloader", parent)
 {
 	setFallbacksEnabled(false);
-	auto cookieStr=value(KeyCookies).toString();
-	cookieJar=new CookieJar(cookieStr,parent);
-	if (!cookieStr.isEmpty()&&cookieJar->isEmpty())
+	auto cookieStr = value(KeyCookies).toString();
+	cookieJar = new CookieJar(cookieStr, parent);
+	if (!cookieStr.isEmpty() && cookieJar->isEmpty())
 	{
 		remove(KeyCookies);
 	}
@@ -80,9 +80,14 @@ CookieJar* Settings::getCookieJar()
 	return cookieJar;
 }
 
+bool Settings::hasCookies()
+{
+	return  contains(KeyCookies);
+}
+
 void Settings::saveCookies()
 {
-	setValue(KeyCookies,cookieJar->toString());
+	setValue(KeyCookies, cookieJar->toString());
 }
 
 void Settings::removeCookies()

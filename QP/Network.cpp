@@ -1,4 +1,4 @@
-#include "Network.h"
+﻿#include "Network.h"
 #include <QtNetwork>
 
 namespace Network

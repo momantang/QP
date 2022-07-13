@@ -30,6 +30,7 @@ public:
 	Settings(QObject *parent=nullptr);
 	static  Settings *inst();
 	CookieJar *getCookieJar();
+	bool hasCookies();
 	void saveCookies();
 	void removeCookies();
 private:

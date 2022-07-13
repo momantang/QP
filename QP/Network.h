@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QJsonObject>

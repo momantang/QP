@@ -1,9 +1,11 @@
 #pragma once
 #include <QTableWidget>
 
+#include <QtWidgets>
+
 class AbstractDownloadTask;
 class ElidedTextLabel;
-class TaskCellWidet;
+class TaskCellWidget;
 class TaskTableWidget :public QTableWidget
 {
 	Q_OBJECT
@@ -25,8 +27,8 @@ private slots:
 protected:
 	void contextMenuEvent(QContextMenuEvent* event) override;
 private:
-	TaskCellWidet* cellWidget(int row) const;
-	int rowOfCell(TaskCellWidet* cell)const;
+	TaskCellWidget* cellWidget(int row) const;
+	int rowOfCell(TaskCellWidget* cell)const;
 
 	QAction* startAllAct;
 	QAction* stopAllAct;
@@ -42,5 +44,63 @@ private:
 
 class TaskCellWidget :public QWidget
 {
+	Q_OBJECT
+public:
+	enum State { Stopped, Waiting, Downloading, Finished };
+public:
+	TaskCellWidget(AbstractDownloadTask* task, QWidget* parent = nullptr);
+	~TaskCellWidget();
+	static int cellHeight();
+	const AbstractDownloadTask* getTask() const { return task; }
+	State getState() const { return state; }
+	void setState(State state);
+
+	void setWaitState();
+	void startDownload();
+	void stopDownload();
+	void remove();
+signals:
+	void downloadStopped();
+	void downloadFinished();
+	void startBtnClicked();
+	void removeBtnClicked();
+private slots:
+	void onErrorOccurred(const QString &errStr);
+	void onFinished();
+	void open();
+private:
+	void initProgressWidgets();
+	void updateDownloadStats();
+
+	void updateProgressWidgets();
+	void updaateStartStopBtn();
+	void startStopBtnClicked();
+
+	void startCalcDownRate();
+	void stopCalcDownRate();
+private:
+	State state = Stopped;
+	AbstractDownloadTask* task = nullptr;
+
+	QPushButton *iconButton;
+	ElidedTextLabel* titleLabel;
+	QLabel *qnDescLabel;
+	QLabel *progressLabel;
+
+	QProgressBar *progressBar;
+
+	QLabel *downRateLabel;
+	QLabel *timeLeftLabel;
+	ElidedTextLabel* statusTextLabel;
+	QWidget *downloadStatsWidget;
+	QStackedWidget *statusStackedWidget;
+
+	QPushButton* startStopButton;
+	QPushButton* removebutton;
+
+	QTimer *downRateTimer;
+	QList<qint64> downRateWindow;
+
+
 };
 
