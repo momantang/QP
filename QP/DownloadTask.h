@@ -157,9 +157,10 @@ public:
 //	QNetworkReply* getPlayUrlInfo() const override;
 //	QString getPlayUrlInfoDataKey() const override;
 //};
-/*
- *
- 
+
+ /*
+  *
+  *
 class ComicDownloadTask :public AbstractDownloadTask
 {
 	Q_OBJECT

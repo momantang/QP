@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="QPlaylistFileParser">
+    <Position X="0.5" Y="0.5" Width="1.5" />
+    <NestedTypes>
+      <Enum Name="QPlaylistFileParser::FileType" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>QPlaylistFileParser_p.h</NewMemberFileName>
+        </TypeIdentifier>
+      </Enum>
+    </NestedTypes>
+    <TypeIdentifier>
+      <HashCode>BAgAAQAAgAQAAAAgAAEgBAEEAAAAAAAAACgAAAAAECA=</HashCode>
+      <FileName>QPlaylistFileParser_p.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="QMediaPlaylist">
+    <Position X="4.25" Y="0.5" Width="3" />
+    <Compartments>
+      <Compartment Name="Nested Types" Collapsed="false" />
+    </Compartments>
+    <NestedTypes>
+      <Enum Name="QMediaPlaylist::PlaybackMode" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>QMediaPlaylist.h</NewMemberFileName>
+        </TypeIdentifier>
+      </Enum>
+      <Enum Name="QMediaPlaylist::Error" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>QMediaPlaylist.h</NewMemberFileName>
+        </TypeIdentifier>
+      </Enum>
+    </NestedTypes>
+    <TypeIdentifier>
+      <HashCode>oEACwogCAICAAAChAQMAAAAEEAsAIAhAAQCABAIAQCA=</HashCode>
+      <FileName>QMediaPlaylist.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Font Name="Microsoft YaHei UI" Size="9" />
+</ClassDiagram>

@@ -80,6 +80,7 @@ AbstractDownloadTask* AbstractDownloadTask::fromJsonObj(const QJsonObject& json)
 
 QJsonValue AbstractDownloadTask::getReplyJson(const QString& dataKey)
 {
+	qDebug() << dataKey;
 	auto reply = this->httpReply;
 	this->httpReply = nullptr;
 	reply->deleteLater();
@@ -168,38 +169,62 @@ void VideoDownloadTask::removeFile()
 
 int VideoDownloadTask::estimateRemainingSeconds(qint64 downBytesPerSec) const
 {
-	return 0;
+	if (downBytesPerSec == 0 || totalBytesCnt == 0)
+	{
+		return -1;
+	}
+	qint64 ret = (totalBytesCnt - downloadedBytesCnt) / downBytesPerSec;
+	return (ret > INT32_MAX ? -1 : static_cast<int>(ret));
 }
 
 double VideoDownloadTask::getProgress() const
 {
-	return 0.0;
+	if (totalBytesCnt == 0)
+	{
+		return 0;
+	}
+	return static_cast<double>(downloadedBytesCnt) / totalBytesCnt;
 }
 
 QString VideoDownloadTask::getProgressStr() const
 {
-	return QString();
+	if (totalBytesCnt == 0)
+	{
+		return QString();
+	}
+	return QStringLiteral("%1/%2").arg(utils::formattedDataSize(downloadedBytesCnt), utils::formattedDataSize(totalBytesCnt));
 }
 
 QString VideoDownloadTask::getQnDescription() const
 {
-	return QString();
+	return videoQnDescMap.value(qn);
 }
 
 QnList VideoDownloadTask::getAllPossibleQn()
 {
-	QnList list;
-	return list;
+	return videoQnDescMap.keys();
 }
 
 QString VideoDownloadTask::getQnDescription(int qn)
 {
-	return QString();
+	return videoQnDescMap.value(qn);
 }
 
-QnInfo VideoDownloadTask::getQnInfoFromPlayUrlInfo(const QJsonObject&)
+QnInfo VideoDownloadTask::getQnInfoFromPlayUrlInfo(const QJsonObject& data)
 {
 	QnInfo info;
+	for (auto&& fmtValR : data["support_formats"].toArray())
+	{
+		auto fmtObj = fmtValR.toObject();
+		auto qn = fmtObj["quality"].toInt();
+		auto desc = fmtObj["new_description"].toString();
+		info.qnList.append(qn);
+		if (videoQnDescMap.value(qn) != desc)
+		{
+			videoQnDescMap.insert(qn, desc);
+		}
+	}
+	info.currentOn = data["quality"].toInt();
 	return  info;
 }
 
@@ -213,40 +238,166 @@ QJsonObject VideoDownloadTask::toJsonObj() const
 	};
 }
 
-VideoDownloadTask::VideoDownloadTask(const QJsonObject& json) :AbstractVideoDownloadTask(json["path"].toString(), json["qn"].toInt())
+VideoDownloadTask::VideoDownloadTask(const QJsonObject& json)
+	:AbstractVideoDownloadTask(json["path"].toString(), json["qn"].toInt())
 {
+	downloadedBytesCnt = json["bytes"].toInteger(0);
+	totalBytesCnt = json["total"].toInteger();
 }
 
 std::unique_ptr<QFile> VideoDownloadTask::openFileForWrite()
 {
-	std::unique_ptr<QFile> a;
-	return a;
+
+	auto dir = QFileInfo(path).absolutePath();
+	if (!QFileInfo::exists(dir))
+	{
+		if (!QDir().mkpath(dir))
+		{
+			emit errorOccurred(" create dir false");
+			return nullptr;
+		}
+	}
+	auto file = std::make_unique<QFile>(path);
+	if (!file->open(QIODevice::ReadWrite))
+	{
+		emit errorOccurred("open file error");
+		return  nullptr;
+	}
+	auto fileSize = file->size();
+	if (fileSize < downloadedBytesCnt)
+	{
+		qDebug() << QString("filesize(%1) < bytes(%2)").arg(fileSize).arg(downloadedBytesCnt);
+		downloadedBytesCnt = fileSize;
+	}
+	file->seek(downloadedBytesCnt);
+	return file;
 }
 
 void VideoDownloadTask::parsePlayUrlInfo(const QJsonObject& data)
 {
+	auto qnInfo = getQnInfoFromPlayUrlInfo(data);
+	if (!checkQn(qnInfo.currentOn))
+	{
+		return;
+	}
+	if (data["has_paid"].toInt(1) == 0)
+	{
+		emit errorOccurred("该视频需要大会员/付费");
+		return;
+	}
+	auto durl = data["durl"].toArray();
+	if (durl.size() == 0)
+	{
+		emit errorOccurred("请求错误：durl为空");
+		return;
+	}
+	else if (durl.size() > 1)
+	{
+		emit errorOccurred("该视频当前画质有分段（不支持）");
+		return;
+	}
+	auto durlObj = durl.first().toObject();
+	if (!checkSzie(durlObj["size"].toInt()))
+	{
+		return;
+	}
+	durationInMSec = durlObj["length"].toInt();
+	startDownloadStream(durlObj["url"].toString());
 }
 
 void VideoDownloadTask::startDownloadStream(const QUrl& url)
 {
+	emit getUrlfoFinished();
+
+	auto ext = utils::fileExtension(url.fileName());
+	if (downloadedBytesCnt == 0 && !path.endsWith(ext, Qt::CaseInsensitive))
+	{
+		path.append(ext);
+	}
+	file = openFileForWrite();
+	if (!file)
+	{
+		return;
+	}
+	auto request = Network::Bili::Request(url);
+
+	if (downloadedBytesCnt != 0)
+	{
+		request.setRawHeader("Range", "bytes" + QByteArray::number(downloadedBytesCnt) + "-");
+	}
+	httpReply = Network::accessManager()->get(request);
+	connect(httpReply, &QNetworkReply::readyRead, this, &VideoDownloadTask::onStreamReadyRead);
+	connect(httpReply, &QNetworkReply::finished, this, &VideoDownloadTask::onStreamFinished);
+
 }
 
 void VideoDownloadTask::onStreamReadyRead()
 {
+	auto tmp = downloadedBytesCnt + httpReply->bytesAvailable();
+	Q_ASSERT(file != nullptr);
+	if (-1 == file->write(httpReply->readAll()))
+	{
+		emit errorOccurred("文件写入失败:" + file->errorString());
+		httpReply->abort();
+	}
+	else
+	{
+		downloadedBytesCnt = tmp;
+	}
 }
 
 void VideoDownloadTask::onStreamFinished()
 {
+	auto reply = httpReply;
+	httpReply->deleteLater();
+	httpReply = nullptr;
+
+	file.reset();
+
+	if (reply->error() == QNetworkReply::OperationCanceledError)
+	{
+		return;
+	}
+	if (reply->error() != QNetworkReply::NoError)
+	{
+		emit errorOccurred("网络请求错误");
+		return;
+	}
+	emit downloadFinished();
 }
 
 bool VideoDownloadTask::checkQn(int qnFromReply)
 {
-	return false;
+	if (qnFromReply != qn)
+	{
+		if (downloadedBytesCnt == 0)
+		{
+			qn = qnFromReply;
+		}
+		else
+		{
+			emit errorOccurred("获取到画质与已下载部分不同. 请确定登录/会员状态");
+			return false;
+		}
+	}
+	return true;
 }
 
 bool VideoDownloadTask::checkSzie(qint64 sizeFromReply)
 {
-	return false;
+	if (totalBytesCnt != sizeFromReply)
+	{
+		if (downloadedBytesCnt > 0)
+		{
+			emit errorOccurred("获取到文件大小于先前不一致");
+			return  false;
+		}
+		else
+		{
+			totalBytesCnt = sizeFromReply;
+		}
+	}
+	return true;
 }
 
 QJsonObject PgcDownloadTask::toJsonObj() const
@@ -265,15 +416,16 @@ PgcDownloadTask::PgcDownloadTask(const QJsonObject& json) :VideoDownloadTask(jso
 QNetworkReply* PgcDownloadTask::getPlayUrlInfo(qint64 epId, int qn)
 {
 	auto api = "https://api.bilibili.com/pgc/player/web/playurl";
-	auto query = QString("ep_id=%1&qn=%2&fourk=1").arg(epId).arg(qn);
+	auto query = QString("?ep_id=%1&qn=%2&fourk=1").arg(epId).arg(qn);
+	qDebug() << "getPlayUrlInfo " << api + query;
 	return Network::Bili::get(api + query);
 }
 
 QNetworkReply* PgcDownloadTask::getPlayUrlInfo() const
 {
-	return getPlayUrlInfo(epId,qn);
+	return getPlayUrlInfo(epId, qn);
 }
-const QString PgcDownloadTask::playUrlInfoDataKey="result";
+const QString PgcDownloadTask::playUrlInfoDataKey = "result";
 QString PgcDownloadTask::getPlayUrlInfoDataKey() const
 {
 	return playUrlInfoDataKey;

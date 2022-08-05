@@ -81,13 +81,13 @@ MainWindow::MainWindow(QWidget* parent) :QMainWindow(parent)
 	mainLaout->addLayout(topLayout);
 
 	taskTable = new TaskTableWidget;
-	//QTimer::singleShot(0, this, [this] {taskTable->load(); });
+	QTimer::singleShot(0, this, [this] {taskTable->load(); });
 	auto tabs = new MyTabWidget;
 	tabs->addTab(taskTable, QIcon(":/icons/download.svg"), "正在下载");
 	tabs->addTab(new AboutWidget, QIcon(":/icons/about.svg"), "关于");
 	mainLaout->addWidget(tabs);
 
-	setStyleSheet("QMainWindow{backgroud-color:white;}QTableWidget{border:none;}");
+	setStyleSheet("QMainWindow{background-color:white;}QTableWidget{border:none;}");
 	setMinimumSize(650, 360);
 	QTimer::singleShot(0, this, [this] {resize(minimumSize()); });
 
@@ -169,9 +169,11 @@ void MainWindow::downloadButtonClicked()
 		if (result==QDialog::Accepted)
 		{
 			qDebug()<<__func__<<" unfinished";
-			//taskTable->addTasks(dlg.getDownloadTasks());
+
+			taskTable->addTasks(dlg->getDownloadTasks());
 		}
 	});
+	dlg->open();
 }
 
 void MainWindow::getUserInfoFinished()

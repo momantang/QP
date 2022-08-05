@@ -38,7 +38,7 @@ private:
 	QTimer* saveTasksTimer;
 	void setDirty();
 
-	int acitveTaskCnt = 0;
+	int activeTaskCnt = 0;
 	void activateWaitingTasks();
 };
 
@@ -73,7 +73,7 @@ private:
 	void updateDownloadStats();
 
 	void updateProgressWidgets();
-	void updaateStartStopBtn();
+	void updateStartStopBtn();
 	void startStopBtnClicked();
 
 	void startCalcDownRate();

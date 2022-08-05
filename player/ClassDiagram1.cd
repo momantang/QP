@@ -1,0 +1,72 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="Player">
+    <Position X="1" Y="1.5" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>BAFIAYYIAAAAIIAAAgAAABAgACQAEQIJAAAAAQAQAhA=</HashCode>
+      <FileName>player.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="PlayerControls">
+    <Position X="4" Y="1" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>ABAAAAAQAIIAECgAACYAAAAAQAJiAAgEQAAAAAICJAg=</HashCode>
+      <FileName>PlayerControls.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="QWidget" Collapsed="true">
+    <Position X="1.25" Y="0.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>hA6pAGgYqICSoYVAaL8yqpBimu1GwLWO4PBqCgXdwII=</HashCode>
+      <FileName>D:\Qt\6.3.1\msvc2019_64\include\QtWidgets\qwidget.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="PlayerListModel">
+    <Position X="7.25" Y="2.25" Width="1.5" />
+    <NestedTypes>
+      <Enum Name="PlayerListModel::Column" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>PlayerListModel.h</NewMemberFileName>
+        </TypeIdentifier>
+      </Enum>
+    </NestedTypes>
+    <TypeIdentifier>
+      <HashCode>AAMAAYAAQAAAIAJAABACAAAAAAAAEAAAAAAQAAABEAA=</HashCode>
+      <FileName>PlayerListModel.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="QAbstractItemModel" Collapsed="true">
+    <Position X="7.25" Y="1" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>ElUBCKA9SlxQIgJEkAyFBkCIkMABgE4CooIUCCohURY=</HashCode>
+      <FileName>D:\Qt\6.3.1\msvc2019_64\include\QtCore\qabstractitemmodel.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="QMediaPlaylist">
+    <Position X="10" Y="1.75" Width="1.5" />
+    <NestedTypes>
+      <Enum Name="QMediaPlaylist::PlaybackMode" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>QMediaPlaylist.h</NewMemberFileName>
+        </TypeIdentifier>
+      </Enum>
+      <Enum Name="QMediaPlaylist::Error" Collapsed="true">
+        <TypeIdentifier>
+          <NewMemberFileName>QMediaPlaylist.h</NewMemberFileName>
+        </TypeIdentifier>
+      </Enum>
+    </NestedTypes>
+    <TypeIdentifier>
+      <HashCode>oEACwogCAICAAAChAQMAAAAEEAsAIAhAAQCABAIAQCA=</HashCode>
+      <FileName>QMediaPlaylist.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="QMediaPlaylistPrivate">
+    <Position X="12.25" Y="2" Width="2" />
+    <TypeIdentifier>
+      <HashCode>IAAAAIQACAAAAAAAABEAgAAJMAAAAAIAAQAAAAAAMAA=</HashCode>
+      <FileName>QMediaPlaylist_p.h</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Font Name="Microsoft YaHei UI" Size="9" />
+</ClassDiagram>

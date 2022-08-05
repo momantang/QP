@@ -45,7 +45,7 @@ void Extractor::start(QString url)
 	match = QRegExp(R"(^live(\d+)$)").match(url);
 	if (match.hasMatch())
 	{
-		return; startLive(match.captured(1).toLongLong());
+		return startLive(match.captured(1).toLongLong());
 	}
 	if (!url.startsWith("http://") && !url.startsWith("https://"))
 	{
@@ -254,12 +254,14 @@ void Extractor::startPgcByMdId(qint64 mdId)
 
 void Extractor::startPgc(PgcIdType idType, qint64 id)
 {
+	qDebug()<<__func__ <<"   "<<(int)idType<<"  "<<id;
 	if (idType == PgcIdType::EpisodeId)
 	{
 		focusItemId = id;
 	}
 	auto api = "https://api.bilibili.com/pgc/view/web/season";
 	auto query = QString("?%1=%2").arg(idType == PgcIdType::SeasonId ? "season_id" : "ep_id").arg(id);
+	qDebug()<<api+query;
 	httpReply = Network::Bili::get(api + query);
 	connect(httpReply, &QNetworkReply::finished, this, &Extractor::pgcFinished);
 }

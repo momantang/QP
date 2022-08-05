@@ -3,7 +3,7 @@
 #include <QSharedPointer>
 #include <QSharedMemory>
 #include "MainWindow.h"
-#ifdef Q_OS_WIN
+#ifdef Q_OS_WIN1
 #include <Windows.h>
 void raiseWindow(const HWND hwnd)
 {
@@ -54,7 +54,7 @@ int main(int argc,char *argv[])
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    QP w;
+    MainWindow w;
     w.show();
     return a.exec();
 }
