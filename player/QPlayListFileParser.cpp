@@ -1,4 +1,4 @@
-#include "QPlaylistFileParser_p.h"
+﻿#include "QPlaylistFileParser_p.h"
 #include <QFileInfo>
 #include <QDebug>
 #include <QIODevice>
@@ -404,15 +404,15 @@ QPlaylistFileParser::~QPlaylistFileParser()
 }
 QPlaylistFileParser::FileType QPlaylistFileParser::findByMimeType(const QString& mime)
 {
-	if (mime==QLatin1String("text/uri-list")||mime==QLatin1String("audio/x-mpegurl")||mime==QLatin1String("audio/mpegurl"))
+	if (mime == QLatin1String("text/uri-list") || mime == QLatin1String("audio/x-mpegurl") || mime == QLatin1String("audio/mpegurl"))
 	{
 		return QPlaylistFileParser::M3U;
 	}
-	if (mime==QLatin1String("application/x-mpegURL")||mime==QLatin1String("application/vnd.apple.mpegurl"))
+	if (mime == QLatin1String("application/x-mpegURL") || mime == QLatin1String("application/vnd.apple.mpegurl"))
 	{
 		return QPlaylistFileParser::M3U8;
 	}
-	if (mime==QLatin1String("audio/x-scpls"))
+	if (mime == QLatin1String("audio/x-scpls"))
 	{
 		return QPlaylistFileParser::PLS;
 	}
@@ -420,16 +420,16 @@ QPlaylistFileParser::FileType QPlaylistFileParser::findByMimeType(const QString&
 }
 QPlaylistFileParser::FileType QPlaylistFileParser::findBySuffixType(const QString& suffix)
 {
-	const QString &s=suffix.toLower();
-	if (s==QLatin1String("m3u"))
+	const QString& s = suffix.toLower();
+	if (s == QLatin1String("m3u"))
 	{
 		return QPlaylistFileParser::M3U;
 	}
-	if (s==QLatin1String("m3u8"))
+	if (s == QLatin1String("m3u8"))
 	{
 		return QPlaylistFileParser::M3U8;
 	}
-	if (s==QLatin1String("pls"))
+	if (s == QLatin1String("pls"))
 	{
 		return QPlaylistFileParser::PLS;
 	}
@@ -437,14 +437,131 @@ QPlaylistFileParser::FileType QPlaylistFileParser::findBySuffixType(const QStrin
 }
 QPlaylistFileParser::FileType QPlaylistFileParser::findByDataHeader(const char* data, quint32 size)
 {
-	if (!data||size==0)
+	if (!data || size == 0)
 	{
 		return QPlaylistFileParser::UNKNOWN;
 	}
-	if (size>7&&strncmp(data,))
+	if (size > 7 && strncmp(data, "#EXTM3U", 7) == 0)
 	{
-		
+		return QPlaylistFileParser::M3U;
+	}
+	if (size > 10 && strncmp(data, "[playlist]", 10) == 0)
+	{
+		return QPlaylistFileParser::PLS;
+	}
+	return QPlaylistFileParser::UNKNOWN;
+}
+QPlaylistFileParser::FileType QPlaylistFileParser::findPlaylistType(const QString& suffix, const QString& mime, const char* data, quint32 size)
+{
+	FileType dataHeaderType = findByDataHeader(data, size);
+	if (dataHeaderType != UNKNOWN)
+	{
+		return dataHeaderType;
+	}
+	FileType mimeType = findByMimeType(mime);
+	if (mimeType != UNKNOWN)
+	{
+		return mimeType;
+	}
+	FileType suffixType = findBySuffixType(suffix);
+	if (suffixType != UNKNOWN)
+	{
+		return suffixType;
+	}
+	return UNKNOWN;
+}
+
+
+void QPlaylistFileParser::start(const QUrl& media, QIODevice* stream, const QString& mimeType)
+{
+	if (stream)
+	{
+		start(stream, mimeType);
+	}
+	else
+	{
+		start(media, mimeType);
+	}
+}
+void QPlaylistFileParser::start(QIODevice* stream, const QString& mimeType)
+{
+	Q_D(QPlaylistFileParser);
+	const bool validStream = stream ? (stream->isOpen() && stream->isReadable()) : false;
+	if (!validStream)
+	{
+		Q_EMIT error(QMediaPlaylist::AccessDeniedError, QMediaPlaylist::tr("Invalid stream"));
+	}
+	if (!d->currentParser_.isNull())
+	{
+		abort();
+		d->pendingJob_ = { stream,QUrl(),mimeType };
+		return;
+	}
+	playlist.clear();
+	d->reset();
+	d->mimeType_ = mimeType;
+	d->stream_ = stream;
+	connect(d->stream_, &QIODevice::readyRead, this, &QPlaylistFileParser::handleData);
+	d->handleData();
+}
+void QPlaylistFileParser::start(const QUrl& request, const QString& mimeType)
+{
+	Q_D(QPlaylistFileParser);
+	const QUrl& url = request.url();
+
+	if (url.isLocalFile() && !QFile::exists(url.toLocalFile()))
+	{
+		emit error(QMediaPlaylist::AccessDeniedError, QString(QMediaPlaylist::tr("%1 does not exist").arg(url.toString())));
+		return;
+	}
+	if (!d->currentParser_.isNull())
+	{
+		abort();
+		d->pendingJob_ = { nullptr,request,mimeType };
+		return;
+	}
+	d->reset();
+	d->root_ = url;
+	d->mimeType_ = mimeType;
+	d->source_.reset(d->mgr_.get(QNetworkRequest(request)));
+	d->stream_ = d->source_.get();
+
+	connect(d->source_.data(), &QNetworkReply::readyRead, this, &QPlaylistFileParser::handleData);
+	connect(d->source_.data(), &QNetworkReply::finished, this, &QPlaylistFileParser::handleData);
+	connect(d->source_.data(), SIGNAL(errorOccurred(QNetworkReply::NetworkError)), this, SLOT(handleError()));
+
+	if (url.isLocalFile())
+	{
+		d->handleData();
 	}
 }
 
+void QPlaylistFileParser::abort()
+{
+	Q_D(QPlaylistFileParser);
+	d->abort();
+
+	if (d->source_)
+	{
+		d->source_->disconnect();
+	}
+	if (d->stream_)
+	{
+		disconnect(d->stream_,SIGNAL(readyRead()),this,SLOT(handleData()));
+	}
+	playlist.clear();
+}
+void QPlaylistFileParser::handleData()
+{
+	Q_D(QPlaylistFileParser);
+	d->handleData();
+}
+
+void QPlaylistFileParser::handleError()
+{
+	Q_D(QPlaylistFileParser);
+	const QString &errorString=d->source_->errorString();
+	Q_EMIT error(QMediaPlaylist::NetworkError,errorString);
+	abort();
+}
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <QWidget>
 #include <QMediaPlayer>
 
@@ -37,7 +37,7 @@ private slots:
 	void updateRate();
 	void onVolumeSliderValueChanged();
 private:
-	QMediaPlayer::PlaybackState PlaybackState_ = QMediaPlayer::StoppedState;
+	QMediaPlayer::PlaybackState playState_ = QMediaPlayer::StoppedState;
 	bool playerMuted_ = false;
 	QAbstractButton* playButton_ = nullptr;
 	QAbstractButton* stopButton_ = nullptr;
